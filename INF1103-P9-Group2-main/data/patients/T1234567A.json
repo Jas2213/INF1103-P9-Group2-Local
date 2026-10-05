@@ -1,0 +1,173 @@
+{
+  "patient_id": "T1234567A",
+  "history": [
+    {
+      "symptom_description": "PTSD",
+      "ai_result": {
+        "status": "ok",
+        "urgency": "urgent",
+        "severity": "aa",
+        "possible_conditions": [],
+        "recommended_specialist": null,
+        "confidence": "medium",
+        "summary": "(urgent, aa severity) \u2014 PTSD"
+      },
+      "outcome": {
+        "decision": "manual_review",
+        "specialist": null,
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "next_action": "Book priority appointment"
+      },
+      "timestamp": "2026-09-25T14:58:37"
+    },
+    {
+      "timestamp": "2026-10-02T11:57:37",
+      "symptom_description": "High fever with rashes",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient is reporting a high fever accompanied by the development of rashes.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "high fever",
+          "rashes"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "dermatology",
+        "proposed_slot": "2026-10-04 11:00",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T11:57:16"
+      },
+      "patient_confirmed": true
+    },
+    {
+      "timestamp": "2026-10-02T13:03:49",
+      "symptom_description": "I have blood when im shitting",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports the presence of blood in their stool.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "gastroenterology",
+        "flagged_symptoms": [
+          "hematochezia",
+          "rectal bleeding"
+        ],
+        "history_linked": false,
+        "confidence": 0.98,
+        "proposed_slot": "2026-10-02 14:00",
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "gastroenterology",
+        "proposed_slot": "2026-10-04 09:00",
+        "flag_for_manual_review": true,
+        "nurse_override": true,
+        "override_reason": "severity: high",
+        "slot_set_by_staff": false,
+        "status": "GUARDRAIL_OVERRIDDEN",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T13:03:06"
+      },
+      "staff_overrides": [
+        [
+          "severity",
+          "high"
+        ]
+      ],
+      "reviewed_by": "STF0001",
+      "patient_decision": "rejected",
+      "request_dropped": true
+    },
+    {
+      "timestamp": "2026-10-02T13:34:41",
+      "symptom_description": "my lump i reported before just grew bigger",
+      "issue_type": "existing",
+      "ai_result": {
+        "summary": "The patient reports that a previously identified lump has increased in size.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "oncology",
+        "flagged_symptoms": [
+          "rapidly growing lump"
+        ],
+        "history_linked": true,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "route_to_specialist",
+        "next_action": "Your case has been routed to the oncology department. Proposed appointment: 2026-10-04 09:00.",
+        "specialist": "oncology",
+        "proposed_slot": "2026-10-04 09:00",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T13:34:09"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "patient_decision": "accepted",
+      "request_dropped": false
+    }
+  ],
+  "pending_case": {
+    "stage": "awaiting_patient",
+    "submitted_at": "2026-10-02T13:35:11",
+    "symptom_description": "I just rolled down a flight of stairs and bannged my head on the floor",
+    "issue_type": "new",
+    "ai_result": {
+      "summary": "The patient reports falling down a flight of stairs and sustaining a head injury.",
+      "urgency": "urgent",
+      "severity": "high",
+      "recommended_tier": "doctor",
+      "specialist": "emergency_medicine",
+      "flagged_symptoms": [
+        "head trauma",
+        "fall from height"
+      ],
+      "history_linked": false,
+      "confidence": 0.95,
+      "status": "ok"
+    },
+    "outcome": {
+      "decision": "urgent_priority",
+      "next_action": "Please proceed immediately to the nearest Emergency Department.",
+      "specialist": "emergency_medicine",
+      "proposed_slot": "2026-10-04 09:00",
+      "flag_for_manual_review": true,
+      "nurse_override": false,
+      "override_reason": null,
+      "slot_set_by_staff": false,
+      "status": "TRIAGED",
+      "assigned_practitioner_type": "doctor",
+      "override_applied": false,
+      "routing_timestamp": "2026-10-02T13:35:27"
+    },
+    "staff_overrides": [],
+    "reviewed_by": "STF0001"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "patient_id": "S1234567A",
+  "history": [
+    {
+      "timestamp": "2026-10-03T15:16:34",
+      "symptom_description": "john pain",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports experiencing pain, but the location and nature of the pain are unspecified.",
+        "urgency": "non-urgent",
+        "severity": "low",
+        "recommended_tier": "nurse",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "unspecified pain"
+        ],
+        "history_linked": false,
+        "confidence": 0.2,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "schedule_non_urgent",
+        "next_action": "A routine appointment with general practice has been proposed for 2026-10-08 09:00.",
+        "specialist": "general_practice",
+        "proposed_slot": "2026-10-08 09:00",
+        "flag_for_manual_review": false,
+        "nurse_override": true,
+        "override_reason": "severity: no; urgency: no",
+        "slot_set_by_staff": false,
+        "status": "GUARDRAIL_OVERRIDDEN",
+        "assigned_practitioner_type": "nurse",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-03T15:15:54"
+      },
+      "staff_overrides": [
+        [
+          "severity",
+          "no"
+        ],
+        [
+          "urgency",
+          "no"
+        ]
+      ],
+      "reviewed_by": "STF0001",
+      "patient_decision": "rejected",
+      "request_dropped": true
+    }
+  ],
+  "pending_case": {
+    "stage": "awaiting_patient",
+    "submitted_at": "2026-10-03T15:26:30",
+    "symptom_description": "Bleeding from fingernail",
+    "issue_type": "new",
+    "ai_result": {
+      "summary": "The patient reports active bleeding from a fingernail.",
+      "urgency": "urgent",
+      "severity": "low",
+      "recommended_tier": "nurse",
+      "specialist": "urgent_care",
+      "flagged_symptoms": [
+        "bleeding from fingernail"
+      ],
+      "history_linked": false,
+      "confidence": 0.95,
+      "proposed_slot": "2026-10-03 14:00",
+      "status": "ok"
+    },
+    "outcome": {
+      "decision": "urgent_priority",
+      "next_action": "Please proceed immediately to the nearest Emergency Department.",
+      "specialist": "urgent_care",
+      "proposed_slot": "2026-10-05 09:00",
+      "flag_for_manual_review": true,
+      "nurse_override": true,
+      "override_reason": "severity: low; urgency: urgent",
+      "slot_set_by_staff": false,
+      "status": "GUARDRAIL_OVERRIDDEN",
+      "assigned_practitioner_type": "nurse",
+      "override_applied": false,
+      "routing_timestamp": "2026-10-03T15:31:48"
+    },
+    "staff_overrides": [
+      [
+        "severity",
+        "low"
+      ],
+      [
+        "urgency",
+        "urgent"
+      ]
+    ],
+    "original_ai_result": {
+      "summary": "The patient reports active bleeding from a fingernail.",
+      "urgency": "non-urgent",
+      "severity": "low",
+      "recommended_tier": "nurse",
+      "specialist": "general_practice",
+      "flagged_symptoms": [
+        "bleeding from fingernail"
+      ],
+      "history_linked": false,
+      "confidence": 0.95,
+      "status": "ok"
+    },
+    "reviewed_by": "STF0001"
+  }
+}

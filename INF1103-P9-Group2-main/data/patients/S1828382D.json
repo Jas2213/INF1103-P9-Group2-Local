@@ -1,0 +1,32 @@
+{
+  "patient_id": "S1828382D",
+  "history": [],
+  "pending_case": {
+    "stage": "awaiting_patient",
+    "submitted_at": "2026-10-06T00:43:46",
+    "symptom_description": "Test123 If this appears as a string then the AI is down",
+    "issue_type": "new",
+    "ai_result": {
+      "status": "error",
+      "error_reason": "AI did not return a valid structured response after retry."
+    },
+    "outcome": {
+      "decision": "route_to_specialist",
+      "next_action": "Your case has been routed to the john department. Proposed appointment: 2027-02-12 12:30.",
+      "specialist": "john",
+      "proposed_slot": "2027-02-12 12:30",
+      "flag_for_manual_review": false,
+      "nurse_override": true,
+      "override_reason": "q",
+      "slot_set_by_staff": true,
+      "status": "GUARDRAIL_OVERRIDDEN",
+      "assigned_practitioner_type": "doctor",
+      "override_applied": false,
+      "routing_timestamp": "2026-10-06T00:51:44"
+    },
+    "staff_overrides": [],
+    "review_source": "staff_manual",
+    "reviewed_by": "STF0001",
+    "reviewed_at": "2026-10-06T00:51:57"
+  }
+}

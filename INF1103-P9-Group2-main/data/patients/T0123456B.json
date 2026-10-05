@@ -1,0 +1,39 @@
+{
+  "patient_id": "T0123456B",
+  "history": [],
+  "pending_case": {
+    "stage": "awaiting_patient",
+    "submitted_at": "2026-10-02T16:40:04",
+    "symptom_description": "fever",
+    "issue_type": "new",
+    "ai_result": {
+      "summary": "The patient reports experiencing a fever with no other symptoms mentioned.",
+      "urgency": "non-urgent",
+      "severity": "low",
+      "recommended_tier": "nurse",
+      "specialist": "general_practice",
+      "flagged_symptoms": [
+        "fever"
+      ],
+      "history_linked": false,
+      "confidence": 0.95,
+      "status": "ok"
+    },
+    "outcome": {
+      "decision": "schedule_non_urgent",
+      "next_action": "A routine appointment with general practice has been proposed for 2026-10-07 09:00.",
+      "specialist": "general_practice",
+      "proposed_slot": "2026-10-07 09:00",
+      "flag_for_manual_review": false,
+      "nurse_override": false,
+      "override_reason": null,
+      "slot_set_by_staff": false,
+      "status": "TRIAGED",
+      "assigned_practitioner_type": "nurse",
+      "override_applied": false,
+      "routing_timestamp": "2026-10-02T16:41:46"
+    },
+    "staff_overrides": [],
+    "reviewed_by": "STF0001"
+  }
+}
