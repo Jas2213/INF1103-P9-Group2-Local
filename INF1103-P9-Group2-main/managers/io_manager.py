@@ -75,29 +75,13 @@ def prompt_choice(prompt_text, valid_options):
 # Patient identity (collect patient ID + new/existing patient)
 # ---------------------------------------------------------------------------
 
-def prompt_patient_nric():
-    """
-    Collect and validate the patient's NRIC. Rejects and re-prompts on
-    bad format. Does NOT check whether the patient already exists —
-    that requires a storage lookup, which is data_manager's job. main.py
-    should call data_manager.load_patient(nric) with the value this
-    returns, then pass the result to display_patient_greeting() below.
-
-    Returns:
-        The validated, uppercased NRIC string.
-    """
+def _prompt_valid_nric(prompt_text):
+    """Keep asking until the user enters a validly formatted NRIC. Returns it uppercased."""
     while True:
-        raw = input("Please enter your NRIC (e.g. S1234567A): ").strip()
-
-        if not raw:
-            print("This can't be empty — please try again.")
-            continue
-
-        if not validate_nric_format(raw):
-            print(f"'{raw}' doesn't look like a valid NRIC. Format is 1 letter + 7 digits + 1 letter.")
-            continue
-
-        return raw.upper()
+        raw = input(prompt_text).strip()
+        if validate_nric_format(raw):
+            return raw.upper()
+        print(f"'{raw}' doesn't look like a valid NRIC. Format is 1 letter + 7 digits + 1 letter.")
 
 
 def display_patient_greeting(existing_record):
@@ -113,9 +97,9 @@ def display_patient_greeting(existing_record):
     """
     if existing_record is not None:
         visit_count = len(existing_record.get("history", []))
-        print(f"Welcome back! We have {visit_count} previous visit(s) on file.")
+        print(f"\nWelcome back! We have {visit_count} previous visit(s) on file.")
     else:
-        print("We don't have a record for you yet — you'll be registered as a new patient.")
+        print("\nWe don't have a record for you yet — you'll be registered as a new patient.")
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +111,21 @@ def prompt_symptom_description():
     return prompt_nonempty_text("Please describe your symptoms: ")
 
 
+def prompt_symptom_duration():
+    return prompt_nonempty_text(
+        "How long have you had these symptoms? "
+        "(e.g. 3 hours, 5 days, or 2 weeks): "
+    )
+
+
+def prompt_self_rated_severity():
+    return int(prompt_choice("Rate the severity (1-10)",
+                             [str(i) for i in range(1, 11)]))
+
+
+def prompt_red_flags_present():
+    return prompt_yes_no("Any chest pain, or difficulty breathing")
+
 def prompt_issue_type():
     """
     Ask whether today's report is for a new problem or an existing/ongoing
@@ -137,7 +136,34 @@ def prompt_issue_type():
     Returns:
         "new" or "existing".
     """
-    return prompt_choice("Is this report for a", ["new", "existing"])
+    return prompt_choice("\nIs this report for a", ["new", "existing"])
+
+
+
+def prompt_follow_up_answers(questions):
+    """
+    Display AI-generated follow-up questions and collect
+    the patient's answers.
+
+    Returns:
+        A list of answers in the same order as the questions.
+    """
+    answers = []
+
+    if not questions:
+        return answers
+
+    display_message(
+        "\nWe have a few additional questions to better "
+        "understand your symptoms."
+    )
+
+    for index, question in enumerate(questions, start=1):
+        display_message(f"\nQuestion {index}: {question}")
+        answer = prompt_nonempty_text("Your answer: ")
+        answers.append(answer)
+
+    return answers
 
 
 # ---------------------------------------------------------------------------
@@ -167,62 +193,6 @@ def display_ai_summary_and_confirm(ai_result):
     summary = ai_result.get("summary", "(no summary available)")
     print(f"\nHere's what we understood from your symptoms:\n  \"{summary}\"")
     return prompt_yes_no("Does this accurately reflect your symptoms?")
-
-
-# ---------------------------------------------------------------------------
-# Nurse-side: show AI suggestion + outcome, accept or override
-# ---------------------------------------------------------------------------
-
-# Decision options a nurse can pick when overriding — kept as plain strings
-# (not imported from logic_manager) so this module doesn't depend on that
-# module's internals. These values must match the "decision" values
-# logic_manager produces, per the team's agreed schema.
-NURSE_DECISION_OPTIONS = [
-    "route_to_specialist",
-    "urgent_priority",
-    "schedule_non_urgent",
-    "manual_review",
-]
-
-
-def display_nurse_review(ai_result, outcome):
-    """
-    Show the AI's assessment and the system's proposed outcome to a
-    nurse, then ask whether to accept it or override it.
-
-    Args:
-        ai_result: dict from ai_manager.
-        outcome: dict from logic_manager (the proposed decision).
-
-    Returns:
-        If accepted: (False, None, None, None)
-            i.e. (is_override, new_decision, reason, specialist)
-        If overridden: (True, new_decision, reason, specialist)
-            where new_decision is one of NURSE_DECISION_OPTIONS, reason is
-            free text, and specialist is a string or None.
-    """
-    print("\n--- Nurse Review ---")
-    if isinstance(ai_result, dict) and ai_result.get("status") == "ok":
-        print(f"AI summary: {ai_result.get('summary', '(none)')}")
-        print(f"AI urgency/severity: {ai_result.get('urgency')} / {ai_result.get('severity')}")
-    else:
-        print("AI summary: unavailable (API failure)")
-
-    print(f"System-proposed decision: {outcome.get('decision')}")
-    print(f"Next action: {outcome.get('next_action')}")
-
-    accept = prompt_yes_no("Accept this decision?")
-    if accept:
-        return False, None, None, None
-
-    new_decision = prompt_choice("Enter the overriding decision", NURSE_DECISION_OPTIONS)
-    reason = prompt_nonempty_text("Reason for override: ")
-
-    specialist = None
-    if new_decision == "route_to_specialist":
-        specialist = prompt_nonempty_text("Specialist to route to: ")
-
-    return True, new_decision, reason, specialist
 
 
 # ---------------------------------------------------------------------------
@@ -267,9 +237,8 @@ def display_error(message):
 # ---------------------------------------------------------------------------
 # Login and role-specific menus
 # ---------------------------------------------------------------------------
-
-PATIENT_MENU_OPTIONS = ["submit", "respond", "logout"]
-STAFF_MENU_OPTIONS = ["review", "logout"]
+PATIENT_MENU_OPTIONS = ["submit", "respond", "appointments", "logout"]
+STAFF_MENU_OPTIONS = ["review", "search", "logout"]
 ADMIN_MENU_OPTIONS = ["create", "list", "exit"]
 
 
@@ -295,17 +264,31 @@ def prompt_login_id():
 def prompt_patient_menu():
     """Options a patient can see. Returns one of PATIENT_MENU_OPTIONS."""
     print("\n=== Patient Menu ===")
-    print("  submit  - Submit a new problem")
-    print("  respond - View and respond to a proposed appointment")
-    print("  logout  - Log out")
+    print("")
+    print("  submit       - Submit a new problem")
+    print("")
+    print("  respond      - View and respond to a proposed appointment")
+    print("")
+    print("  appointments - View my upcoming appointments")
+    print("")
+    print("  logout       - Log out")
+    print("")
+    print("====================")
     return prompt_choice("Select an option", PATIENT_MENU_OPTIONS)
+    
 
 
 def prompt_staff_menu():
     """Options hospital staff can see. Returns one of STAFF_MENU_OPTIONS."""
     print("\n=== Hospital Staff Menu ===")
+    print("")
     print("  review - Review waiting patient requests")
+    print("")
+    print("  search - Search for a patient")
+    print("")
     print("  logout - Log out")
+    print("")
+    print("===========================")
     return prompt_choice("Select an option", STAFF_MENU_OPTIONS)
 
 
@@ -321,9 +304,14 @@ def display_staff_greeting(staff_record):
 def prompt_admin_menu():
     """Options for the staff-account tool. Returns one of ADMIN_MENU_OPTIONS."""
     print("\n=== Staff Account Admin ===")
+    print("")
     print("  create - Create a new staff account")
+    print("")
     print("  list   - List existing staff accounts")
+    print("")
     print("  exit   - Quit")
+    print("")
+    print("\n=========================")
     return prompt_choice("Select an option", ADMIN_MENU_OPTIONS)
 
 
@@ -367,11 +355,7 @@ def prompt_select_case(pending_cases):
     """
     print("\nRequests awaiting staff review:")
     for i, (patient_id, case) in enumerate(pending_cases, start=1):
-        result = case.get("ai_result")
-        if isinstance(result, dict) and result.get("status") == "ok":
-            summary = result.get("summary", "(AI summary unavailable)")
-        else:
-            summary = "[MANUAL REVIEW] " + case.get("symptom_description", "(no report)")
+        summary = (case.get("ai_result") or {}).get("summary", "(AI summary unavailable)")
         print(f"  {i}. {patient_id} | submitted {case.get('submitted_at', '?')} | {summary}")
 
     total = len(pending_cases)
@@ -381,62 +365,46 @@ def prompt_select_case(pending_cases):
             return pending_cases[int(raw) - 1]
         print(f"Please enter a number between 1 and {total}.")
 
-def display_manual_review_case(case, history):
-    """Display the original patient report when AI is unavailable."""
-    print("\n--- Manual Review: AI unavailable ---")
-    print(f"Reported issue: {case.get('issue_type', 'not specified')}")
-    print(
-        f"Patient's symptoms: "
-        f"{case.get('symptom_description', '(not provided)')}"
-    )
 
-    entries = (history or {}).get("history", [])
-    print("Previous reports:")
-
-    if not entries:
-        print("  No previous reports on file.")
-
-    for entry in entries:
-        if isinstance(entry, dict):
-            print(
-                f"  {entry.get('timestamp', '?')}: "
-                f"{entry.get('symptom_description', '(not provided)')}"
-            )
-
-
-def prompt_manual_review_decision():
-    """Ask staff to choose an action or leave the case queued."""
-    print("manual_review: leave this request queued for further review")
-    print("urgent_priority: send emergency instructions, without an appointment")
-    print("route_to_specialist: propose a specialist appointment")
-    print("schedule_non_urgent: propose a routine appointment")
-
-    return prompt_choice(
-        "Select manual decision",
-        (
-            "manual_review",
-            "urgent_priority",
-            "route_to_specialist",
-            "schedule_non_urgent",
-        ),
-    )
-
-def display_staff_case(ai_result, outcome):
-    """Show the AI suggestion plus the logic_manager proposal to staff."""
+def display_staff_case(ai_result, outcome, case=None):
+    """Show the AI suggestion, follow up questions' answers and the logic_manager proposal to staff."""
     print("\n--- Request for Staff Review ---")
+
     if isinstance(ai_result, dict) and ai_result.get("status") == "ok":
         print(f"AI summary: {ai_result.get('summary', '(none)')}")
         flagged = ai_result.get("flagged_symptoms") or []
         print(f"Flagged symptoms: {', '.join(flagged) if flagged else '(none)'}")
+
     else:
         print("AI summary: unavailable (API failure)")
 
+    """Display the patient's follow up questions and answers"""
+    case = case or {}
+    questions = case.get("follow_up_questions") or []
+    answers = case.get("follow_up_answers") or []
+
+    print("\n--- Patient Follow-up Questions ---")
+    if questions:
+        for index, question in enumerate(questions):
+            answer = answers[index] if index < len(answers) else "(no answer recorded)"
+            print(f"Q{index + 1}: {question}") 
+            print(f"A{index + 1}: {answer}") 
+            
+    else: print("No follow-up questions recorded.")
+
+
     print(f"Department:    {outcome.get('specialist') or 'N/A'}")
+    print("")
     print(f"Urgency:       {(ai_result or {}).get('urgency', 'n/a')}")
+    print("")
     print(f"Severity:      {(ai_result or {}).get('severity', 'n/a')}")
+    print("")
     print(f"Proposed slot: {outcome.get('proposed_slot') or 'N/A'}")
+    print("")
     print(f"Decision:      {outcome.get('decision')}")
+    print("")
     print(f"Next action:   {outcome.get('next_action')}")
+    print("")
     if outcome.get("nurse_override"):
         print(f"(Staff override applied: {outcome.get('override_reason')})")
 
@@ -451,12 +419,13 @@ def prompt_override_field():
     return prompt_choice("Which field do you want to override", OVERRIDE_FIELDS)
 
 
-def prompt_override_verdict(field, valid_options=None):
-    """Use fixed choices when main supplies them; otherwise collect text."""
-    if valid_options is not None:
-        return prompt_choice(f"Select {field}", valid_options)
-    if field == "proposed_slot":
-        print("(e.g. a date, a date range, or 'push to next month')")
+def prompt_override_verdict(field, options=None):
+    """
+    Verdict for the chosen field. If `options` is given (urgency/severity),
+    staff must pick one of them; otherwise free text (department).
+    """
+    if options:
+        return prompt_choice(f"Enter your verdict for '{field}'", list(options))
     return prompt_nonempty_text(f"Enter your verdict for '{field}': ")
 
 
@@ -481,16 +450,44 @@ def prompt_patient_confirm_reject():
 
 
 # ---------------------------------------------------------------------------
-# AI outage messages
+# AI outage messages (no manual fallback: patients go to their GP / A&E,
+# staff contact IT, so hospital staff are not overloaded)
 # ---------------------------------------------------------------------------
 
 def display_ai_down_patient():
-    """Explain fallback before saving; do not claim submission succeeded yet."""
-    print("\n[!] AI triage is unavailable. We will try to save your report for staff review.")
-    print("    If this is an emergency, go to A&E immediately; do not wait for this review.")
+    """Tell the patient the system is down and where to go instead."""
+    print("\n[!] Our triage system is currently unavailable, so your request was NOT submitted.")
+    print("")
+    print("    Please visit your GP. If this is an emergency, go to A&E immediately.")
 
 
 def display_ai_down_staff():
     """Tell staff the system is down; they should not handle it manually."""
     print("\n[!] The AI triage system is currently down.")
+    print("")
     print("    Please contact IT support. No changes were made to this request.")
+
+
+# ---------------------------------------------------------------------------
+# Search function for staff to find a patient by NRIC
+# ---------------------------------------------------------------------------
+def prompt_search_nric():
+    """Staff-facing NRIC prompt. Re-prompts until the format is valid."""
+    return _prompt_valid_nric("Enter the patient's NRIC (e.g. S1234567A): ")
+
+# ---------------------------------------------------------------------------
+# Display function for Patients to view their upcoming appointments
+# ---------------------------------------------------------------------------
+
+#Should our data include a hospital location ? For now with just department 
+
+def display_appointments(appointments, heading="Your upcoming appointments"):
+    """Show a list of appointment dicts from logic_manager.get_upcoming_appointments()."""
+    print(f"\n--- {heading} ---")
+    if not appointments:
+        print("  No upcoming appointments.")
+        return
+    for i, appt in enumerate(appointments, start=1):
+        print(f"  {i}. {appt['slot']} | {appt['department']} (with a {appt['practitioner']})")
+        print("")
+        print(f"     Reason: {appt['reason']}")

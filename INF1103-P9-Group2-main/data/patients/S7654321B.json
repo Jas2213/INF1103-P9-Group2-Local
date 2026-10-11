@@ -1,0 +1,141 @@
+{
+  "patient_id": "S7654321B",
+  "history": [
+    {
+      "timestamp": "2026-09-20T10:15:00",
+      "symptom_description": "Persistent cough for two weeks",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a persistent cough lasting two weeks.",
+        "urgency": "non-urgent",
+        "severity": "low",
+        "recommended_tier": "nurse",
+        "specialist": "general_practice",
+        "flagged_symptoms": ["persistent cough"],
+        "history_linked": false,
+        "confidence": 0.9,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "schedule_non_urgent",
+        "next_action": "A routine appointment with general practice has been proposed for 2026-09-25 09:00.",
+        "specialist": "general_practice",
+        "proposed_slot": "2026-09-25 09:00",
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "nurse",
+        "override_applied": false,
+        "routing_timestamp": "2026-09-20T10:14:00"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "patient_decision": "accepted",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-05T09:30:00",
+      "symptom_description": "Recurring chest tightness when climbing stairs",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports recurring chest tightness on exertion.",
+        "urgency": "urgent",
+        "severity": "medium",
+        "recommended_tier": "doctor",
+        "specialist": "cardiology",
+        "flagged_symptoms": ["chest tightness", "exertional symptoms"],
+        "history_linked": false,
+        "confidence": 0.93,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "route_to_specialist",
+        "next_action": "Your case has been routed to the cardiology department. Proposed appointment: 2026-10-15 10:30.",
+        "specialist": "cardiology",
+        "proposed_slot": "2026-10-15 10:30",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-05T09:29:00"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "patient_decision": "accepted",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-06T14:00:00",
+      "symptom_description": "Follow-up skin rash on forearm",
+      "issue_type": "existing",
+      "ai_result": {
+        "summary": "The patient reports a persistent rash on the forearm.",
+        "urgency": "non-urgent",
+        "severity": "low",
+        "recommended_tier": "nurse",
+        "specialist": "dermatology",
+        "flagged_symptoms": ["rash"],
+        "history_linked": false,
+        "confidence": 0.88,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "route_to_specialist",
+        "next_action": "Your case has been routed to the dermatology department. Proposed appointment: 2026-11-02 14:00.",
+        "specialist": "dermatology",
+        "proposed_slot": "2026-11-02 14:00",
+        "flag_for_manual_review": false,
+        "nurse_override": true,
+        "override_reason": "proposed_slot: push to next month",
+        "slot_set_by_staff": true,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-06T13:59:00"
+      },
+      "staff_overrides": [["proposed_slot", "push to next month"]],
+      "reviewed_by": "STF0001",
+      "patient_decision": "accepted",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-06T16:20:00",
+      "symptom_description": "Mild headache",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a mild headache.",
+        "urgency": "non-urgent",
+        "severity": "low",
+        "recommended_tier": "nurse",
+        "specialist": "general_practice",
+        "flagged_symptoms": ["headache"],
+        "history_linked": false,
+        "confidence": 0.9,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "schedule_non_urgent",
+        "next_action": "A routine appointment with general practice has been proposed for 2026-10-12 09:00.",
+        "specialist": "general_practice",
+        "proposed_slot": "2026-10-12 09:00",
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "TRIAGED",
+        "assigned_practitioner_type": "nurse",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-06T16:19:00"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "patient_decision": "rejected",
+      "request_dropped": true
+    }
+  ]
+}

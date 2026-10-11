@@ -35,6 +35,22 @@ def _get_patient_filepath(patient_id):
     return os.path.join(DATA_DIR, f"{safe_id}.json")
 
 
+def _write_json_atomic(filepath, data):
+    """
+    Write data as JSON to a temp file, then replace the target - avoids
+    leaving a half-written/corrupt file if the process dies mid-write.
+    Returns True on success, False on failure (never raises).
+    """
+    try:
+        tmp_path = filepath + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp_path, filepath)
+        return True
+    except OSError:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Core load / save
 # ---------------------------------------------------------------------------
@@ -84,96 +100,7 @@ def save_patient(patient_id, data):
     ensure_data_folder()
     filepath = _get_patient_filepath(patient_id)
 
-    try:
-        # Write to a temp file first, then replace — avoids leaving a
-        # half-written/corrupt JSON file if the process dies mid-write.
-        tmp_path = filepath + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp_path, filepath)
-        return True
-    except OSError:
-        return False
-
-
-# ---------------------------------------------------------------------------
-# History append
-# ---------------------------------------------------------------------------
-
-def append_history_record(patient_id, record):
-    """
-    Add a new record to a patient's history rather than overwriting it.
-    Creates the patient file if it doesn't already exist.
-
-    Args:
-        patient_id: the patient's id
-        record: dict, e.g. {"symptom_description": ..., "ai_result": ...,
-                             "outcome": ...}. A "timestamp" key is added
-                             automatically if not already present.
-
-    Returns:
-        True on success, False on failure.
-    """
-    existing = load_patient(patient_id)
-
-    if existing is None:
-        existing = {"patient_id": str(patient_id), "history": []}
-
-    record = dict(record)  # don't mutate caller's dict
-    record.setdefault("timestamp", datetime.now().isoformat(timespec="seconds"))
-
-    existing["history"].append(record)
-    return save_patient(patient_id, existing)
-
-
-# ---------------------------------------------------------------------------
-# Query / filter
-# ---------------------------------------------------------------------------
-
-def find_patients_by_condition(urgency=None, severity=None, specialist=None):
-    """
-    Filter/query function across all stored patients (spec requirement:
-    "at least one filter or query function").
-
-    Looks at each patient's MOST RECENT history entry and matches against
-    any of the given filters (all provided filters must match — AND logic).
-    Any filter left as None is ignored.
-
-    Args:
-        urgency: e.g. "urgent" / "non-urgent" (matches ai_result.urgency)
-        severity: e.g. "low" / "medium" / "high" (matches ai_result.severity)
-        specialist: e.g. "cardiology" (matches outcome.specialist)
-
-    Returns:
-        list of patient record dicts (full records, not just the id) whose
-        latest history entry matches all given filters.
-    """
-    ensure_data_folder()
-    matches = []
-
-    for filename in os.listdir(DATA_DIR):
-        if not filename.endswith(".json"):
-            continue
-        patient_id = filename[: -len(".json")]
-        patient = load_patient(patient_id)
-
-        if patient is None or not patient.get("history"):
-            continue
-
-        latest = patient["history"][-1]
-        ai_result = latest.get("ai_result") or {}
-        outcome = latest.get("outcome") or {}
-
-        if urgency is not None and ai_result.get("urgency") != urgency:
-            continue
-        if severity is not None and ai_result.get("severity") != severity:
-            continue
-        if specialist is not None and outcome.get("specialist") != specialist:
-            continue
-
-        matches.append(patient)
-
-    return matches
+    return _write_json_atomic(filepath, data)
 
 
 # ---------------------------------------------------------------------------
@@ -315,14 +242,7 @@ def save_staff(staff_record):
     ensure_staff_folder()
     filepath = _get_staff_filepath(staff_record["staff_id"])
 
-    try:
-        tmp_path = filepath + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(staff_record, f, indent=2)
-        os.replace(tmp_path, filepath)
-        return True
-    except OSError:
-        return False
+    return _write_json_atomic(filepath, staff_record)
 
 
 def list_staff():
@@ -347,3 +267,94 @@ def next_staff_id():
         if name.startswith("STF") and name[3:].isdigit():
             highest = max(highest, int(name[3:]))
     return f"STF{highest + 1:04d}"
+
+# ---------------------------------------------------------------------------
+# Appointment slot calendar (data/appointment_slots.json)
+#
+# {"YYYY-MM-DD HH:MM": {"status": "available" | "booked", "patient_id": str|None}, ...}
+# Seeded by generate_slots.py. Booking is check-and-set on the whole file,
+# which is safe for this CLI's single-process use (no concurrent writers).
+# ---------------------------------------------------------------------------
+
+SLOTS_FILE = os.path.join("data", "appointment_slots.json")
+
+
+def load_slots():
+    """Load the full slot calendar. Returns {} if the file is missing or
+    corrupt (never raises)."""
+    ensure_data_folder()
+    if not os.path.exists(SLOTS_FILE):
+        return {}
+    try:
+        with open(SLOTS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        _quarantine_corrupt_file(SLOTS_FILE)
+        return {}
+    if not isinstance(data, dict):
+        _quarantine_corrupt_file(SLOTS_FILE)
+        return {}
+    return data
+
+
+def save_slots(slots):
+    """Write the full slot calendar to disk. True on success, False on failure."""
+    ensure_data_folder()
+    return _write_json_atomic(SLOTS_FILE, slots)
+
+
+def _parse_slot_key(key):
+    """Parse a slot key, or return None if it isn't a valid "YYYY-MM-DD HH:MM"."""
+    try:
+        return datetime.strptime(key, "%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return None
+
+
+def is_slot_available(slot_key):
+    """True if slot_key exists in the calendar and is currently available."""
+    info = load_slots().get(slot_key)
+    return info is not None and info.get("status") == "available"
+
+
+def find_next_available_slot(earliest_dt):
+    """Earliest available slot ("YYYY-MM-DD HH:MM") at or after
+    earliest_dt, or None if nothing is available."""
+    slots = load_slots()
+    best_key, best_dt = None, None
+    for key, info in slots.items():
+        if not isinstance(info, dict) or info.get("status") != "available":
+            continue
+        slot_dt = _parse_slot_key(key)
+        if slot_dt is None or slot_dt < earliest_dt:
+            continue  # malformed key in a damaged calendar file: skip it, don't crash
+        if best_dt is None or slot_dt < best_dt:
+            best_key, best_dt = key, slot_dt
+    return best_key
+
+
+def book_slot(slot_key, patient_id):
+    """
+    Reserve a slot for exactly one patient. Only succeeds if the slot
+    exists and is currently available - this is what guarantees no two
+    patients ever share a date/time. Returns True if booked, False if
+    the slot doesn't exist or is already taken (never raises).
+    """
+    slots = load_slots()
+    info = slots.get(slot_key)
+    if info is None or info.get("status") != "available":
+        return False
+    slots[slot_key] = {"status": "booked", "patient_id": str(patient_id)}
+    return save_slots(slots)
+
+
+def release_slot(slot_key):
+    """Free a previously booked slot (patient rejected, or staff changed
+    it). Returns True on success, False if the slot doesn't exist."""
+    if not slot_key:
+        return False
+    slots = load_slots()
+    if slot_key not in slots:
+        return False
+    slots[slot_key] = {"status": "available", "patient_id": None}
+    return save_slots(slots)

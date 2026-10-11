@@ -10,7 +10,7 @@ Staff then log in through main.py by typing their Staff ID.
 
 Like main.py, this is a separate entry point, so it is allowed to call both
 io_manager and data_manager; the managers themselves still never import
-each other. No print() or input() here: all I/O goes through io_manager.
+each other. No direct terminal I/O here: all I/O goes through io_manager.
 """
 
 from datetime import datetime

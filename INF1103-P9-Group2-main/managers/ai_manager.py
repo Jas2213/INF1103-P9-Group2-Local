@@ -34,6 +34,7 @@ Setup:
 """
 
 import json
+import logging
 import os
 import time
 from datetime import datetime
@@ -45,6 +46,31 @@ from google.genai import types
 load_dotenv()  # reads .env into os.environ if present; harmless if the
                 # file doesn't exist (e.g. in Docker, where the key is
                 # injected via --env-file instead)
+
+# Diagnostics go to a log file, never to the terminal: the spec reserves all
+# terminal output for io_manager, and patients shouldn't see raw API errors mid-session.
+LOG_FILE = os.path.join("data", "ai_manager.log")
+logger = logging.getLogger("ai_manager")
+logger.setLevel(logging.INFO)
+logger.propagate = False  # keep records off the terminal / root logger
+try:
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    _handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(_handler)
+except OSError:
+    logger.addHandler(logging.NullHandler())  # logging must never crash the app
+
+# The Gemini SDK writes its own warnings through Python logging (for example
+# about automatic function calling, which this project doesn't use). With no
+# handler set they would print in the terminal, so send them to the same log
+# file as ai_manager's own messages. Both spellings of the SDK's logger name
+# are covered.
+for _sdk_name in ("google_genai", "google.genai"):
+    _sdk_logger = logging.getLogger(_sdk_name)
+    _sdk_logger.propagate = False
+    for _h in logger.handlers:
+        _sdk_logger.addHandler(_h)
 
 MODEL_NAME = "gemini-3.1-flash-lite"  # free-tier eligible, for testing while billing/quota is sorted out
 MAX_RETRIES = 1  # one retry on a malformed/invalid response, per spec
@@ -61,10 +87,6 @@ REQUIRED_FIELDS = {
     "history_linked": bool,
     "confidence": (int, float),
 }
-
-VALID_URGENCY = {"urgent", "non-urgent"}
-VALID_SEVERITY = {"low", "medium", "high"}
-VALID_TIER = {"doctor", "nurse"}
 
 _RESPONSE_SCHEMA = {
     "type": "object",
@@ -84,6 +106,24 @@ _RESPONSE_SCHEMA = {
     ],
 }
 
+# Single source of truth: the allowed values live in _RESPONSE_SCHEMA above.
+VALID_URGENCY = set(_RESPONSE_SCHEMA["properties"]["urgency"]["enum"])
+VALID_SEVERITY = set(_RESPONSE_SCHEMA["properties"]["severity"]["enum"])
+VALID_TIER = set(_RESPONSE_SCHEMA["properties"]["recommended_tier"]["enum"])
+_NO_CLIENT_ERROR = {"status": "error", "error_reason": "AI client not configured (missing GEMINI_API_KEY)."}
+
+
+_FOLLOW_UP_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "questions": types.Schema(
+            type=types.Type.ARRAY,
+            items=types.Schema(type=types.Type.STRING),
+        ),
+    },
+    required=["questions"],
+)
+
 
 # ---------------------------------------------------------------------------
 # Client (created once, reused across calls)
@@ -96,6 +136,7 @@ def _get_client():
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
+        logger.error("GEMINI_API_KEY is not set; AI triage unavailable.")
         return None
     return genai.Client(api_key=api_key)
 
@@ -104,20 +145,27 @@ def _get_client():
 # Prompt building
 # ---------------------------------------------------------------------------
 
-def build_prompt(symptom_description, patient_history=None):
+def build_prompt(intake, patient_history=None):
     """
     Build the prompt sent to the AI from the patient's raw symptom text
     plus (optionally) their prior visit history, so the model can check
     for a link between the new complaint and a past condition.
 
     Args:
-        symptom_description: str, the patient's free-text description.
+        intake: dict with description, duration, self_rated_severity
+                and red_flags_present.
         patient_history: the patient's stored record dict from
                           data_manager.load_patient(), or None if new.
 
     Returns:
         str prompt ready to send to the API.
     """
+
+    description = intake["description"]
+    duration = intake.get("duration", "unknown")
+    self_rated = intake.get("self_rated_severity", "unknown")
+    red_flags = "YES" if intake.get("red_flags_present") else "no"
+
     history_block = "The patient has no prior visits on file."
     if patient_history and patient_history.get("history"):
         past_entries = []
@@ -136,7 +184,14 @@ tier for a nurse to review. A human always makes the final decision.
 {history_block}
 
 New symptom report from the patient:
-\"\"\"{symptom_description}\"\"\"
+\"\"\"{description}\"\"\"
+
+Patient's answers to the intake questions:
+- How long: {duration}
+- Self-rated severity (1-10): {self_rated}
+- Reports chest pain or difficulty breathing: {red_flags}
+
+Use these answers together with the description when judging urgency and severity.
 
 Respond with a single JSON object matching this exact shape:
 {{
@@ -174,7 +229,7 @@ def _call_api(client, prompt, schema=_RESPONSE_SCHEMA):
         )
         return response.text
     except Exception as exc:  # noqa: BLE001 — any API failure must be caught, never crash the app
-        print(f"[ai_manager] API call failed: {exc}")
+        logger.warning("API call failed: %s", exc)
         return None
 
 
@@ -213,15 +268,65 @@ def _validate_response(data):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def get_ai_triage_result(symptom_description, patient_history=None):
+def _request_validated(client, prompt, schema, is_valid, label):
+    """
+    Shared call -> parse -> validate loop with one retry. Returns the parsed
+    dict, or None if every attempt failed. Never raises.
+    """
+    for attempt in range(MAX_RETRIES + 1):
+        is_last_attempt = attempt == MAX_RETRIES
+        raw_text = _call_api(client, prompt, schema)
+
+        if raw_text is None:
+            # API-level failure (network error, 429, 503, etc.) - pause
+            # before retrying so a transient spike has a chance to clear.
+            if not is_last_attempt:
+                time.sleep(RETRY_DELAY_SECONDS)
+            continue
+
+        try:
+            parsed = json.loads(raw_text)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("%s attempt %d: response was not valid JSON.", label, attempt + 1)
+            continue
+
+        if is_valid(parsed):
+            return parsed
+
+        logger.warning("%s attempt %d: response failed validation.", label, attempt + 1)
+
+    return None
+
+
+def is_ai_available():
+    """
+    Quick pre-check, run before a patient is asked to describe anything:
+    True only if the API key is configured AND the API answers a tiny
+    request. One attempt, no retry. Never raises.
+    """
+    try:
+        client = _get_client()
+        if client is None:
+            return False
+        client.models.generate_content(
+            model=MODEL_NAME, contents="Reply with the single word OK.",
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001 - any failure means "not available"
+        logger.warning("AI availability check failed: %s", exc)
+        return False
+
+
+def get_ai_triage_result(intake, patient_history=None):
     """
     Main entry point called by main.py. Builds the prompt, calls the API,
     validates the response, retries once on a malformed/invalid result,
-    and always returns a well-formed dict — never raises, never crashes
+    and always returns a well-formed dict - never raises, never crashes
     the app even if the API is down or returns garbage.
 
     Args:
-        symptom_description: str, the patient's free-text report.
+        intake: dict with description, duration, self_rated_severity
+                and red_flags_present.
         patient_history: the patient's record dict from data_manager, or
                           None for a new patient.
 
@@ -230,38 +335,179 @@ def get_ai_triage_result(symptom_description, patient_history=None):
     """
     client = _get_client()
     if client is None:
-        return {"status": "error", "error_reason": "AI client not configured (missing GEMINI_API_KEY)."}
+        return dict(_NO_CLIENT_ERROR)
 
-    prompt = build_prompt(symptom_description, patient_history)
+    prompt = build_prompt(intake, patient_history)
+    parsed = _request_validated(client, prompt, _RESPONSE_SCHEMA, _validate_response, "Triage")
+    if parsed is None:
+        return {"status": "error", "error_reason": "AI did not return a valid structured response after retry."}
 
-    for attempt in range(MAX_RETRIES + 1):
-        is_last_attempt = attempt == MAX_RETRIES
-        raw_text = _call_api(client, prompt)
+    parsed["status"] = "ok"
+    return parsed
 
-        if raw_text is None:
-            # API-level failure (network error, 429, 503, etc.) — pause
-            # before retrying so a transient spike has a chance to clear,
-            # instead of immediately hammering the API again.
-            if not is_last_attempt:
-                time.sleep(RETRY_DELAY_SECONDS)
-            continue
 
-        try:
-            parsed = json.loads(raw_text)
-        except (json.JSONDecodeError, TypeError):
-            print(f"[ai_manager] Attempt {attempt + 1}: response was not valid JSON.")
-            continue
 
-        if _validate_response(parsed):
-            parsed["status"] = "ok"
-            return parsed
+def generate_follow_up_questions(intake, ai_result=None):
+    """
+    Generate symptom-specific follow-up questions using Gemini.
 
-        print(f"[ai_manager] Attempt {attempt + 1}: response failed schema validation.")
+    Args:
+        intake: The patient's initial symptoms and answers.
+        ai_result: The initial AI triage assessment, if available.
 
-    # Every attempt failed — log and return a safe fallback so the rest
-    # of the pipeline (io_manager, logic_manager) can handle it gracefully
-    # instead of crashing.
-    return {"status": "error", "error_reason": "AI did not return a valid structured response after retry."}
+    Returns:
+        A dict containing up to 3 questions, or an error status.
+    """
+    client = _get_client()
+
+    if client is None:
+        return {
+            "status": "error",
+            "questions": [],
+        }
+
+    prompt = f"""
+You are assisting with a patient triage application.
+
+Your task is to identify what additional information may be
+needed to understand the patient's symptoms for staff review.
+
+Patient's initial information:
+{json.dumps(intake, ensure_ascii=False)}
+
+Initial AI assessment:
+{json.dumps(ai_result or {}, ensure_ascii=False)}
+
+Instructions:
+1. Generate up to 3 relevant follow-up questions.
+2. Base the questions on this patient's specific symptoms
+   and answers, not a fixed list of questions.
+3. Do not repeat questions that the patient has already answered.
+4. Ask only questions that could provide useful additional
+   information for clinical staff.
+5. Use clear, simple language that patients can understand.
+6. If no further information is needed, return an empty list.
+7. Do not diagnose the patient or make treatment decisions.
+8. Do not delay urgent escalation when warning signs are present.
+9. Return only JSON matching the required schema.
+
+Return an object with a "questions" field containing a list
+of strings.
+"""
+
+    parsed = _request_validated(
+        client,
+        prompt,
+        _FOLLOW_UP_SCHEMA,
+        _validate_follow_up_response,
+        "Follow-up questions",
+    )
+
+    if parsed is None:
+        return {
+            "status": "error",
+            "questions": [],
+        }
+
+    return {
+        "status": "ok",
+        "questions": parsed["questions"],
+    }
+
+
+def _validate_follow_up_response(data):
+    """Check that Gemini returned a valid list of follow-up questions."""
+    if not isinstance(data, dict):
+        return False
+
+    questions = data.get("questions")
+
+    if not isinstance(questions, list) or len(questions) > 3:
+        return False
+
+    if not all(
+        isinstance(question, str) and question.strip()
+        for question in questions
+    ):
+        return False
+
+    return True
+
+
+
+def reassess_ai_triage_result(
+    intake,
+    initial_ai_result,
+    follow_up_questions,
+    follow_up_answers,
+    patient_history=None,
+):
+    """
+    Reassess the patient's symptoms using their follow-up answers.
+
+    Returns an updated triage result using the existing response schema.
+    """
+    client = _get_client()
+
+    if client is None:
+        return dict(_NO_CLIENT_ERROR)
+
+    # Start with the original symptom information and patient history.
+    prompt = build_prompt(intake, patient_history)
+
+    # Add the initial assessment and the patient's follow-up answers.
+    follow_up_information = {
+        "initial_ai_assessment": initial_ai_result,
+        "follow_up_questions_and_answers": [
+            {
+                "question": question,
+                "answer": answer,
+            }
+            for question, answer in zip(
+                follow_up_questions,
+                follow_up_answers,
+            )
+        ],
+    }
+
+    prompt += f"""
+
+Additional information collected from the patient:
+{json.dumps(follow_up_information, ensure_ascii=False)}
+
+Reassess the patient using BOTH the original symptom information
+and the additional answers.
+
+Instructions:
+1. Consider all the information together.
+2. Update the summary, severity, urgency and recommendations
+   according to the available information.
+3. Do not automatically retain the initial assessment if the
+   new information changes the assessment.
+4. Do not diagnose the patient.
+5. Return a valid response matching the required triage schema.
+6. This assessment is advisory and must be reviewed by staff.
+"""
+
+    parsed = _request_validated(
+        client,
+        prompt,
+        _RESPONSE_SCHEMA,
+        _validate_response,
+        "Triage reassessment",
+    )
+
+    if parsed is None:
+        return {
+            "status": "error",
+            "error_reason": (
+                "AI reassessment could not be completed "
+                "after retry."
+            ),
+        }
+
+    parsed["status"] = "ok"
+    return parsed
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +579,11 @@ def _valid_slot(slot):
         return False
 
 
+def _validate_override_response(data):
+    """Standard triage validation plus a well-formed proposed_slot."""
+    return _validate_response(data) and _valid_slot(data.get("proposed_slot", ""))
+
+
 def get_ai_override_result(symptom_description, original_ai_result, staff_overrides):
     """
     Regenerate the AI result after hospital staff overrides. Same safety
@@ -345,34 +596,17 @@ def get_ai_override_result(symptom_description, original_ai_result, staff_overri
     """
     client = _get_client()
     if client is None:
-        return {"status": "error", "error_reason": "AI client not configured (missing GEMINI_API_KEY)."}
+        return dict(_NO_CLIENT_ERROR)
 
     prompt = build_override_prompt(symptom_description, original_ai_result, staff_overrides)
+    parsed = _request_validated(client, prompt, _OVERRIDE_SCHEMA, _validate_override_response, "Override")
+    if parsed is None:
+        return {"status": "error", "error_reason": "AI did not return a valid structured response for the override."}
 
-    for attempt in range(MAX_RETRIES + 1):
-        is_last_attempt = attempt == MAX_RETRIES
-        raw_text = _call_api(client, prompt, _OVERRIDE_SCHEMA)
-
-        if raw_text is None:
-            if not is_last_attempt:
-                time.sleep(RETRY_DELAY_SECONDS)
-            continue
-
-        try:
-            parsed = json.loads(raw_text)
-        except (json.JSONDecodeError, TypeError):
-            print(f"[ai_manager] Override attempt {attempt + 1}: response was not valid JSON.")
-            continue
-
-        if _validate_response(parsed) and _valid_slot(parsed.get("proposed_slot", "")):
-            slot = parsed.get("proposed_slot", "").strip()
-            if slot:
-                parsed["proposed_slot"] = slot
-            else:
-                parsed.pop("proposed_slot", None)
-            parsed["status"] = "ok"
-            return parsed
-
-        print(f"[ai_manager] Override attempt {attempt + 1}: response failed validation.")
-
-    return {"status": "error", "error_reason": "AI did not return a valid structured response for the override."}
+    slot = parsed.get("proposed_slot", "").strip()
+    if slot:
+        parsed["proposed_slot"] = slot
+    else:
+        parsed.pop("proposed_slot", None)
+    parsed["status"] = "ok"
+    return parsed

@@ -4,11 +4,12 @@ logic_manager.py
 Business logic engine for clinical triage. Applies deterministic rules
 (DevOps proposal, Section 4), handles API-failure fallbacks, and applies
 hospital-staff overrides. Staff always win: any field a staff member has
-overridden is never changed back by the automatic rules.
+overridden is preserved for appointment routing. Emergency decisions never
+receive an appointment slot.
 
 Functions called by main.py:
-    evaluate_triage_logic(ai_result, patient_history=None, staff_overrides=None)
-    apply_staff_override(outcome, ai_result, staff_overrides)
+    evaluate_triage_logic(ai_result, staff_overrides=None, red_flags_present=False)
+    apply_staff_override(outcome, staff_overrides)
     schedule_appointment(outcome, slot_time)
 
 staff_overrides is a list of [field, verdict] pairs, where field is one of
@@ -22,15 +23,6 @@ Outcome schema (dict):
 """
 
 from datetime import datetime, timedelta
-
-# Valid states for the booking workflow
-VALID_STATES = [
-    "INITIATED",
-    "TRIAGED",
-    "GUARDRAIL_OVERRIDDEN",
-    "SCHEDULED",
-    "COMPLETED",
-]
 
 _GP_NAMES = ("general_practice", "general practice", "gp")
 
@@ -55,6 +47,8 @@ def validate_staff_override(field, verdict):
         verdict = verdict.lower()
         if verdict not in options:
             raise ValueError(f"{field} must be one of: {', '.join(options)}.")
+    if field == "proposed_slot":
+        verdict = validate_manual_slot(verdict)
     return verdict
 
 
@@ -73,14 +67,18 @@ def validate_staff_overrides(staff_overrides):
     return validated
 
 
-def apply_staff_risk_values(ai_result, staff_overrides):
-    """Copy the AI result and enforce validated staff risk values; latest wins."""
-    validated = validate_staff_overrides(staff_overrides)
+def _enforce_risk_values(ai_result, validated_overrides):
+    """Copy the AI result and write in already-validated staff risk values; latest wins."""
     updated = dict(ai_result)
-    for field, verdict in validated:
+    for field, verdict in validated_overrides:
         if field in STAFF_OVERRIDE_OPTIONS:
             updated[field] = verdict
     return updated
+
+
+def apply_staff_risk_values(ai_result, staff_overrides):
+    """Public entry point: validate the overrides, then enforce them on a copy of the AI result."""
+    return _enforce_risk_values(ai_result, validate_staff_overrides(staff_overrides))
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +100,7 @@ def _readable_department(specialist):
     return str(specialist).replace("_", " ")
 
 
-def _build_next_action(decision, specialist, slot, slot_set_by_staff):
+def _build_next_action(decision, specialist, slot):
     """
     Build the patient-facing next_action text so it always agrees with the
     decision, department and slot actually being proposed.
@@ -110,8 +108,6 @@ def _build_next_action(decision, specialist, slot, slot_set_by_staff):
     department = _readable_department(specialist)
 
     if decision == "urgent_priority":
-        if slot_set_by_staff:
-            return f"Your case is marked urgent. Proposed appointment: {slot}."
         return "Please proceed immediately to the nearest Emergency Department."
     if decision == "route_to_specialist":
         return f"Your case has been routed to the {department} department. Proposed appointment: {slot}."
@@ -124,7 +120,7 @@ def _build_next_action(decision, specialist, slot, slot_set_by_staff):
 # Core evaluation
 # ---------------------------------------------------------------------------
 
-def evaluate_triage_logic(ai_result, patient_history=None, staff_overrides=None):
+def evaluate_triage_logic(ai_result, staff_overrides=None, red_flags_present=False):
     """
     Apply the business rules to an ai_manager result.
 
@@ -136,11 +132,11 @@ def evaluate_triage_logic(ai_result, patient_history=None, staff_overrides=None)
     "High risk" means urgency == "urgent" or severity == "high".
 
     Staff overrides (list of [field, verdict]):
-      - "department": the keyword specialist rules are skipped.
+      - "department": use the staff value and skip keyword specialist rules.
       - "urgency" / "severity": the high-risk guardrail is skipped, and
         high risk is judged only from the field(s) staff overrode.
-      - "proposed_slot": the slot is taken from ai_result["proposed_slot"]
-        instead of being calculated.
+      - "proposed_slot": use the validated staff value for appointment decisions.
+        Emergency decisions always have no slot.
     """
     staff_overrides = validate_staff_overrides(staff_overrides)
 
@@ -161,17 +157,27 @@ def evaluate_triage_logic(ai_result, patient_history=None, staff_overrides=None)
             "routing_timestamp": datetime.now().isoformat(timespec="seconds"),
         }
 
-    ai_result = apply_staff_risk_values(ai_result, staff_overrides)
+    # Escalate the AI assessment when the patient reports red flags.
+    ai_result = apply_red_flag_escalation(ai_result, red_flags_present)
+
+    # Apply validated staff decisions after the automatic escalation.
+    ai_result = _enforce_risk_values(ai_result, staff_overrides)  # already validated above
+
     overridden = _overridden_fields(staff_overrides)
+    staff_values = dict(staff_overrides)  # Latest value for each field wins.
 
     severity = str(ai_result.get("severity", "low")).lower()
     urgency = str(ai_result.get("urgency", "non-urgent")).lower()
     tier = str(ai_result.get("recommended_tier", "nurse")).lower()
     specialist = str(ai_result.get("specialist", "general_practice")).lower().strip()
+    if "department" in staff_values:
+        specialist = staff_values["department"].lower().replace(" ", "_")
     history_linked = bool(ai_result.get("history_linked", False))
+
 
     flagged = ai_result.get("flagged_symptoms", [])
     symptoms_str = " ".join(flagged).lower() + " " + str(ai_result.get("summary", "")).lower()
+
 
     # Keyword specialist rules (skipped when staff chose the department)
     if "department" not in overridden:
@@ -230,18 +236,21 @@ def evaluate_triage_logic(ai_result, patient_history=None, staff_overrides=None)
     else:
         decision = "schedule_non_urgent"        # non-urgent rule
 
-    # Slot: staff's slot is used exactly as given
-    slot_set_by_staff = "proposed_slot" in overridden and bool(ai_result.get("proposed_slot"))
-    if slot_set_by_staff:
-        slot = ai_result["proposed_slot"]
-    elif decision == "urgent_priority" or urgency == "urgent":
+    # Emergency outcomes never propose appointments, even with a staff slot.
+    slot_set_by_staff = False
+    if decision == "urgent_priority":
+        slot = None
+    elif "proposed_slot" in staff_values:
+        slot = staff_values["proposed_slot"]
+        slot_set_by_staff = True
+    elif urgency == "urgent":
         slot = _calculate_next_slot(days_ahead=2)
     else:
         slot = _calculate_next_slot(days_ahead=5)
 
     return {
         "decision": decision,
-        "next_action": _build_next_action(decision, specialist, slot, slot_set_by_staff),
+        "next_action": _build_next_action(decision, specialist, slot),
         "specialist": specialist,
         "proposed_slot": slot,
         "flag_for_manual_review": urgency == "urgent" or decision == "urgent_priority",
@@ -254,20 +263,27 @@ def evaluate_triage_logic(ai_result, patient_history=None, staff_overrides=None)
         "routing_timestamp": datetime.now().isoformat(timespec="seconds"),
     }
 
+def apply_red_flag_escalation(ai_result, red_flags_present):
+    """Copy of ai_result escalated to urgent/high when the patient reported red flags."""
+    if not isinstance(ai_result, dict) or not red_flags_present or ai_result.get("status") != "ok":
+        return ai_result
+    updated = dict(ai_result)
+    updated["urgency"] = "urgent"
+    updated["severity"] = "high"
+    return updated
+
 
 # ---------------------------------------------------------------------------
 # Staff override
 # ---------------------------------------------------------------------------
 
-def apply_staff_override(outcome, ai_result, staff_overrides):
+def apply_staff_override(outcome, staff_overrides):
     """
     Mark an outcome as overridden by hospital staff.
 
     Args:
         outcome: dict from evaluate_triage_logic.
-        ai_result: the AI result regenerated after the staff input; may
-                   contain "proposed_slot" ("YYYY-MM-DD HH:MM").
-        staff_overrides: list of [field, verdict] pairs.
+        staff_overrides: list of [field, verdict] pairs (validated here).
 
     Returns:
         a NEW outcome dict (the input is not modified).
@@ -276,50 +292,23 @@ def apply_staff_override(outcome, ai_result, staff_overrides):
     updated = dict(outcome)
     updated["nurse_override"] = True
     updated["override_reason"] = "; ".join(
-        f"{pair[0]}: {pair[1]}" for pair in (staff_overrides or []) if len(pair) >= 2
+        f"{field}: {verdict}" for field, verdict in staff_overrides
     )
     updated["status"] = "GUARDRAIL_OVERRIDDEN"
 
-    if "proposed_slot" in _overridden_fields(staff_overrides) and ai_result.get("proposed_slot"):
-        updated["proposed_slot"] = ai_result["proposed_slot"]
-        updated["slot_set_by_staff"] = True
-        updated["next_action"] = _build_next_action(
-            updated.get("decision"), updated.get("specialist"),
-            updated["proposed_slot"], True,
-        )
-
-    return updated
-
-
-def apply_nurse_override(current_outcome, override_decision, reason, specialist=None):
-    """
-    Legacy decision-based override (not used by the current main.py flow,
-    which uses apply_staff_override). Returns a new outcome dict.
-    """
-    updated = dict(current_outcome)
-
-    updated["decision"] = override_decision
-    updated["nurse_override"] = True
-    updated["override_reason"] = reason
-    updated["status"] = "GUARDRAIL_OVERRIDDEN"
-
-    if override_decision == "route_to_specialist":
-        updated["specialist"] = specialist
-        updated["assigned_practitioner_type"] = "doctor"
-        updated["next_action"] = f"Nurse override: Case re-routed to {specialist}."
-        updated["proposed_slot"] = _calculate_next_slot(1)
-        updated["flag_for_manual_review"] = False
-    elif override_decision == "urgent_priority":
-        updated["assigned_practitioner_type"] = "doctor"
-        updated["next_action"] = "Nurse override: Escalated to urgent priority."
-        updated["flag_for_manual_review"] = True
-    elif override_decision == "schedule_non_urgent":
-        updated["next_action"] = "Nurse override: Scheduled for routine follow-up."
-        updated["proposed_slot"] = _calculate_next_slot(3)
-        updated["flag_for_manual_review"] = False
-    elif override_decision == "manual_review":
-        updated["next_action"] = "Nurse override: Placed on manual review queue."
-        updated["flag_for_manual_review"] = True
+    staff_values = dict(staff_overrides)
+    if updated.get("decision") in ("urgent_priority", "manual_review"):
+        updated["proposed_slot"] = None
+        updated["slot_set_by_staff"] = False
+    else:
+        if "department" in staff_values:
+            updated["specialist"] = staff_values["department"].lower().replace(" ", "_")
+        if "proposed_slot" in staff_values:
+            updated["proposed_slot"] = staff_values["proposed_slot"]
+            updated["slot_set_by_staff"] = True
+    updated["next_action"] = _build_next_action(
+        updated.get("decision"), updated.get("specialist"), updated.get("proposed_slot"),
+    )
 
     return updated
 
@@ -344,46 +333,96 @@ def validate_manual_slot(slot_time):
     return slot_time
 
 
-def build_manual_review_outcome(decision, reason, specialist=None, slot_time=None):
-    """Build a staff-authored outcome without a fabricated AI assessment."""
-    if decision not in ("urgent_priority", "route_to_specialist", "schedule_non_urgent"):
-        raise ValueError("Choose an urgent, specialist or routine decision.")
-    if not isinstance(reason, str) or not reason.strip():
-        raise ValueError("Manual review requires a reason.")
-    if decision == "urgent_priority":
-        specialist, slot_time = None, None
-    else:
-        specialist = validate_staff_override("department", specialist).lower().replace(" ", "_")
-        slot_time = validate_manual_slot(slot_time)
-    base = evaluate_triage_logic({"status": "error"})
-    base.update({
-        "decision": decision,
-        "specialist": specialist,
-        "proposed_slot": slot_time,
-        "next_action": _build_next_action(decision, specialist, slot_time, bool(slot_time)),
-        "flag_for_manual_review": decision == "urgent_priority",
-        "nurse_override": True,
-        "override_reason": reason.strip(),
-        "slot_set_by_staff": bool(slot_time),
-        "status": "GUARDRAIL_OVERRIDDEN",
-        "assigned_practitioner_type": "doctor" if decision != "schedule_non_urgent" else "nurse",
-    })
-    return base
-
-
 def schedule_appointment(outcome, slot_time):
     """
     Book the appointment (called only after the patient accepts).
     Returns {"success": True, "outcome": <new dict>} or
             {"success": False, "error": str}. The input is not modified.
     """
-    if outcome.get("status") not in ("TRIAGED", "GUARDRAIL_OVERRIDDEN"):
+    if not isinstance(outcome, dict) or outcome.get("status") not in ("TRIAGED", "GUARDRAIL_OVERRIDDEN"):
         return {"success": False, "error": "Patient not ready for scheduling."}
+    if outcome.get("decision") not in ("route_to_specialist", "schedule_non_urgent"):
+        return {"success": False, "error": "This decision is not ready for an appointment."}
     if not slot_time:
         return {"success": False, "error": "No appointment slot to book."}
+    try:
+        slot_time = validate_manual_slot(slot_time)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
 
     booked = dict(outcome)
     booked["status"] = "SCHEDULED"
     booked["proposed_slot"] = slot_time
 
     return {"success": True, "outcome": booked}
+
+
+def finalize_proposed_slot(outcome, slot_key):
+    """Replace the outcome's placeholder slot with the real available
+    slot main.py found, and rebuild next_action so the patient-facing
+    text matches. Returns a NEW outcome dict."""
+    if outcome.get("decision") not in ("route_to_specialist", "schedule_non_urgent"):
+        raise ValueError("This decision cannot receive an appointment slot.")
+    slot_key = validate_manual_slot(slot_key)
+    updated = dict(outcome)
+    updated["proposed_slot"] = slot_key
+    updated["next_action"] = _build_next_action(
+        updated.get("decision"), updated.get("specialist"), slot_key,
+    )
+    return updated
+
+
+def mark_no_slots_available(outcome):
+    """No calendar slot was available. Flag for manual scheduling instead
+    of proposing nothing. Returns a NEW outcome dict."""
+    updated = dict(outcome)
+    updated["proposed_slot"] = None
+    updated["flag_for_manual_review"] = True
+    updated["next_action"] = (
+        "No appointment slots are currently available. Your case has "
+        "been flagged for manual scheduling by staff."
+    )
+    return updated
+# ---------------------------------------------------------------------------
+# Search for upcoming appointments
+# ---------------------------------------------------------------------------
+
+def get_upcoming_appointments(patient_record, now=None): 
+    """
+    Return a patient's booked appointments that haven't happened yet,
+    soonest first. Only history entries whose outcome status is
+    "SCHEDULED" count; malformed or past slots are skipped.
+
+    Args:
+        patient_record: dict from data_manager.load_patient(), or None.
+        now: datetime override (for testing); defaults to datetime.now().
+
+    Returns:
+        list of dicts: slot, department, practitioner, reason, booked_on.
+    """
+    now = now or datetime.now()
+    upcoming = []
+    if not isinstance(patient_record, dict):
+        return upcoming
+
+    for entry in patient_record.get("history", []):
+        outcome = entry.get("outcome") if isinstance(entry, dict) else None
+        if not isinstance(outcome, dict) or outcome.get("status") != "SCHEDULED":
+            continue
+        slot = str(outcome.get("proposed_slot") or "").strip()
+        try:
+            slot_dt = datetime.strptime(slot, "%Y-%m-%d %H:%M")
+        except ValueError:
+            continue
+        if slot_dt < now:
+            continue
+        upcoming.append({
+            "slot": slot,
+            "department": _readable_department(outcome.get("specialist") or "general practice"),
+            "practitioner": outcome.get("assigned_practitioner_type", "nurse"),
+            "reason": entry.get("symptom_description", "(not provided)"),
+            "booked_on": entry.get("timestamp", "?"),
+        })
+
+    upcoming.sort(key=lambda appt: appt["slot"])  # "YYYY-MM-DD HH:MM" sorts correctly as text
+    return upcoming
