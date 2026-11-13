@@ -373,3 +373,163 @@ def release_slot(slot_key):
         return False
     slots[slot_key] = {"status": "available", "patient_id": None}
     return save_slots(slots)
+
+# ===========================================================================
+# PHASE 2 OOP CLASSES (added step by step below; the Phase 1 functions above
+# keep working until the final clean-up commit)
+# ===========================================================================
+
+import logging
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
+from enum import StrEnum
+from models import (
+    DataCorruptError,
+    Patient,
+    PendingCase,
+    Serializable,
+    StaffMember,
+    Stage,
+    Status,
+    TriageError,
+    ValidationError,
+)
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
+SLOT_FORMAT = "%Y-%m-%d %H:%M"
+
+
+def _build_logger(base_dir):
+    """File-only logger in <data>/data_manager.log; terminal output belongs to io_manager."""
+    logger = logging.getLogger("data_manager")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if not logger.handlers:
+        try:
+            os.makedirs(base_dir, exist_ok=True)
+            handler = logging.FileHandler(os.path.join(base_dir, "data_manager.log"),
+                                          encoding="utf-8", delay=True)
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            logger.addHandler(handler)
+        except OSError:
+            logger.addHandler(logging.NullHandler())
+    return logger
+
+
+# ===========================================================================
+# JsonFileStore: low-level file work shared by every repository
+# ===========================================================================
+
+class JsonFileStore:
+
+    def __init__(self, logger=None):
+        self._logger = logger or logging.getLogger("data_manager")
+
+    def read(self, path):
+        """Parsed JSON, or None if the file doesn't exist. Raises DataCorruptError if unreadable."""
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            raise DataCorruptError(f"{path} is unreadable: {exc}") from None
+
+    def write(self, path, data):
+        """
+        Write to a temp file, then replace the target, so a crash mid-write never
+        leaves a half-written file. True on success, False on failure. Never raises.
+        """
+        tmp_path = path + ".tmp"
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp_path, path)
+            return True
+        except OSError as exc:
+            self._logger.error("Could not write %s: %s", path, exc)
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except OSError:
+                pass
+            return False
+
+    def quarantine(self, path):
+        """Rename a bad file to <file>.corrupt so it can be inspected later. Never raises."""
+        try:
+            if os.path.exists(path):
+                os.replace(path, path + ".corrupt")
+                self._logger.warning("Moved unreadable file aside: %s", path)
+        except OSError as exc:
+            self._logger.error("Could not quarantine %s: %s", path, exc)
+
+
+# ===========================================================================
+# Repository: the interface, and the JSON implementations
+# ===========================================================================
+
+class Repository(ABC):
+    """Saves and loads Serializable objects. Callers never see files or dicts."""
+
+    @abstractmethod
+    def get(self, key):
+        """The object for this key, or None if it is missing or unreadable."""
+
+    @abstractmethod
+    def save(self, item):
+        """True on success, False on failure. Never raises."""
+
+    @abstractmethod
+    def list_all(self):
+        """Every readable object (unreadable ones are skipped)."""
+
+
+class JsonFolderRepository(Repository):
+    """One JSON file per object. Subclasses say which class and which key."""
+
+    item_class = None  # a Serializable subclass, set by each subclass
+
+    def __init__(self, folder, store):
+        self._folder = folder
+        self._store = store
+
+    @abstractmethod
+    def key_of(self, item):
+        """The file name (without .json) for this object."""
+
+    @property
+    def folder(self):
+        return self._folder
+
+    def ensure_folder(self):
+        os.makedirs(self._folder, exist_ok=True)
+
+    def path_for(self, key):
+        return os.path.join(self._folder, f"{str(key).strip().upper()}.json")
+
+    def get(self, key):
+        self.ensure_folder()
+        path = self.path_for(key)
+        try:
+            data = self._store.read(path)
+            return None if data is None else self.item_class.from_dict(data)
+        except TriageError:  # DataCorruptError, or a bad value rejected by a model
+            self._store.quarantine(path)
+            return None
+
+    def save(self, item):
+        self.ensure_folder()
+        return self._store.write(self.path_for(self.key_of(item)), item.to_dict())
+
+    def list_all(self):
+        self.ensure_folder()
+        items = []
+        for name in sorted(os.listdir(self._folder)):
+            if name.endswith(".json"):
+                item = self.get(name[: -len(".json")])
+                if item is not None:
+                    items.append(item)
+        return items
