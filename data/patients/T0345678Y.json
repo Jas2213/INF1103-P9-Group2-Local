@@ -1,0 +1,104 @@
+{
+  "patient_id": "T0345678Y",
+  "history": [
+    {
+      "timestamp": "2026-10-13T17:11:49",
+      "symptom_description": "Lower Back and Neck pain",
+      "symptom_duration": "5 days",
+      "self_rated_severity": 7,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports lower back and neck pain for five days following a gym workout, now accompanied by numbness in the left leg. Referred to cardiology per staff instruction.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "cardiology",
+        "flagged_symptoms": [
+          "lower back pain",
+          "neck pain",
+          "numbness in left leg"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "proposed_slot": "2026-10-14 09:00",
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "cardiology",
+        "proposed_slot": null,
+        "flag_for_manual_review": true,
+        "nurse_override": true,
+        "override_reason": "department: cardiology",
+        "slot_set_by_staff": false,
+        "status": "GUARDRAIL_OVERRIDDEN",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-13T17:11:12"
+      },
+      "staff_overrides": [
+        [
+          "department",
+          "cardiology"
+        ]
+      ],
+      "reviewed_by": "STF0001",
+      "reviewed_at": "2026-10-13T17:11:16",
+      "patient_decision": "acknowledged",
+      "request_dropped": false
+    }
+  ],
+  "pending_case": {
+    "stage": "awaiting_patient",
+    "submitted_at": "2026-10-13T17:14:09",
+    "symptom_description": "i feel feverish and have a flu",
+    "symptom_duration": "1 day",
+    "self_rated_severity": 6,
+    "red_flags_present": false,
+    "issue_type": "new",
+    "ai_result": {
+      "summary": "The patient reports a one-day history of fever, sore throat, and cough, with a self-rated severity of 6/10. Temperature was recorded at 37.5 degrees Celsius.",
+      "urgency": "non-urgent",
+      "severity": "medium",
+      "recommended_tier": "nurse",
+      "specialist": "general_practice",
+      "flagged_symptoms": [
+        "fever",
+        "sore throat",
+        "cough"
+      ],
+      "history_linked": false,
+      "confidence": 0.98,
+      "status": "ok"
+    },
+    "outcome": {
+      "decision": "schedule_non_urgent",
+      "next_action": "A routine appointment with general practice has been proposed for 2026-10-19 09:00.",
+      "specialist": "general_practice",
+      "proposed_slot": "2026-10-19 09:00",
+      "flag_for_manual_review": false,
+      "nurse_override": false,
+      "override_reason": null,
+      "slot_set_by_staff": false,
+      "status": "TRIAGED",
+      "assigned_practitioner_type": "nurse",
+      "override_applied": false,
+      "routing_timestamp": "2026-10-13T17:16:15"
+    },
+    "staff_overrides": [],
+    "follow_up_questions": [
+      "Have you measured your temperature with a thermometer, and if so, what was the reading?",
+      "Are you experiencing any other specific symptoms, such as a cough, sore throat, body aches, or shortness of breath?",
+      "Have you noticed any other symptoms like a stiff neck, rash, or confusion?"
+    ],
+    "follow_up_answers": [
+      "37.5",
+      "i do have sore throat and cough",
+      "no"
+    ],
+    "reviewed_by": "STF0001",
+    "reviewed_at": "2026-10-13T17:16:21"
+  }
+}

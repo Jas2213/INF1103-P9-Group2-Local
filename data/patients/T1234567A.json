@@ -1,0 +1,474 @@
+{
+  "patient_id": "T1234567A",
+  "history": [
+    {
+      "symptom_description": "PTSD",
+      "ai_result": {
+        "status": "ok",
+        "urgency": "urgent",
+        "severity": "high",
+        "possible_conditions": [],
+        "recommended_specialist": null,
+        "confidence": "medium",
+        "summary": "(urgent, aa severity) \u2014 PTSD"
+      },
+      "outcome": {
+        "decision": "manual_review",
+        "specialist": null,
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "next_action": "Book priority appointment"
+      },
+      "timestamp": "2026-09-25T14:58:37"
+    },
+    {
+      "timestamp": "2026-10-02T11:57:37",
+      "symptom_description": "High fever with rashes",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient is reporting a high fever accompanied by the development of rashes.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "high fever",
+          "rashes"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "dermatology",
+        "proposed_slot": "2026-10-04 11:00",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T11:57:16"
+      },
+      "patient_confirmed": true
+    },
+    {
+      "timestamp": "2026-10-02T13:03:49",
+      "symptom_description": "I have blood when im shitting",
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports the presence of blood in their stool.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "gastroenterology",
+        "flagged_symptoms": [
+          "hematochezia",
+          "rectal bleeding"
+        ],
+        "history_linked": false,
+        "confidence": 0.98,
+        "proposed_slot": "2026-10-02 14:00",
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "gastroenterology",
+        "proposed_slot": "2026-10-04 09:00",
+        "flag_for_manual_review": true,
+        "nurse_override": true,
+        "override_reason": "severity: high",
+        "slot_set_by_staff": false,
+        "status": "GUARDRAIL_OVERRIDDEN",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T13:03:06"
+      },
+      "staff_overrides": [
+        [
+          "severity",
+          "high"
+        ]
+      ],
+      "reviewed_by": "STF0001",
+      "patient_decision": "rejected",
+      "request_dropped": true
+    },
+    {
+      "timestamp": "2026-10-02T13:34:41",
+      "symptom_description": "my lump i reported before just grew bigger",
+      "issue_type": "existing",
+      "ai_result": {
+        "summary": "The patient reports that a previously identified lump has increased in size.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "oncology",
+        "flagged_symptoms": [
+          "rapidly growing lump"
+        ],
+        "history_linked": true,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "route_to_specialist",
+        "next_action": "Your case has been routed to the oncology department. Proposed appointment: 2026-10-04 09:00.",
+        "specialist": "oncology",
+        "proposed_slot": "2026-10-04 09:00",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T13:34:09"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "patient_decision": "accepted",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-06T16:35:21",
+      "symptom_description": "I just rolled down a flight of stairs and bannged my head on the floor",
+      "symptom_duration": null,
+      "self_rated_severity": null,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports falling down a flight of stairs and sustaining a head injury.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "emergency_medicine",
+        "flagged_symptoms": [
+          "head trauma",
+          "fall from height"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "emergency_medicine",
+        "proposed_slot": "2026-10-04 09:00",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-02T13:35:27"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "accepted",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-08T12:38:47",
+      "symptom_description": "My heart hurts after running 2.4km",
+      "symptom_duration": "today",
+      "self_rated_severity": 9,
+      "red_flags_present": true,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports experiencing chest pain after running 2.4km today, rating the severity as a 9 out of 10.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "cardiology",
+        "flagged_symptoms": [
+          "chest pain",
+          "difficulty breathing",
+          "high self-rated severity"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "cardiology",
+        "proposed_slot": null,
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "TRIAGED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-08T12:37:58"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "acknowledged",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-08T12:41:22",
+      "symptom_description": "My head hurts",
+      "symptom_duration": "few days",
+      "self_rated_severity": 7,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a persistent headache lasting for a few days with a self-rated severity of 7 out of 10.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "headache",
+          "high pain score"
+        ],
+        "history_linked": true,
+        "confidence": 0.85,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "general_practice",
+        "proposed_slot": null,
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "TRIAGED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-08T12:39:39"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "acknowledged",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-10T20:02:38",
+      "symptom_description": "my stomache hurts",
+      "symptom_duration": "today",
+      "self_rated_severity": 7,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports experiencing abdominal pain starting today with a self-rated severity of 7 out of 10.",
+        "urgency": "urgent",
+        "severity": "medium",
+        "recommended_tier": "nurse",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "abdominal pain",
+          "high self-rated severity"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "general_practice",
+        "proposed_slot": "2026-10-12 09:00",
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "GUARDRAIL_OVERRIDDEN",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": true,
+        "routing_timestamp": "2026-10-08T12:42:11"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "rejected",
+      "request_dropped": true
+    },
+    {
+      "timestamp": "2026-10-10T20:04:10",
+      "symptom_description": "high fever",
+      "symptom_duration": "few days",
+      "self_rated_severity": 9,
+      "red_flags_present": true,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a high fever lasting for a few days with a self-rated severity of 9 out of 10, accompanied by chest pain and difficulty breathing.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "cardiology",
+        "flagged_symptoms": [
+          "high fever",
+          "chest pain",
+          "difficulty breathing",
+          "severe pain"
+        ],
+        "history_linked": true,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "cardiology",
+        "proposed_slot": null,
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "TRIAGED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-10T20:03:52"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "acknowledged",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-10T20:06:37",
+      "symptom_description": "foot infection",
+      "symptom_duration": "over a week",
+      "self_rated_severity": 8,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a foot infection that has persisted for over a week with a self-rated severity of 8 out of 10.",
+        "urgency": "urgent",
+        "severity": "high",
+        "recommended_tier": "doctor",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "foot infection",
+          "high severity pain"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "urgent_priority",
+        "next_action": "Please proceed immediately to the nearest Emergency Department.",
+        "specialist": "general_practice",
+        "proposed_slot": null,
+        "flag_for_manual_review": true,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "TRIAGED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-10T20:06:00"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "acknowledged",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-10T20:07:53",
+      "symptom_description": "foot infection",
+      "symptom_duration": "few days",
+      "self_rated_severity": 6,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a recurring foot infection that has persisted for a few days with a self-rated severity of 6 out of 10.",
+        "urgency": "non-urgent",
+        "severity": "medium",
+        "recommended_tier": "nurse",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "foot infection"
+        ],
+        "history_linked": true,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "schedule_non_urgent",
+        "next_action": "A routine appointment with general practice has been proposed for 2026-10-15 09:00.",
+        "specialist": "general_practice",
+        "proposed_slot": "2026-10-15 09:00",
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "nurse",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-10T20:07:23"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "accepted",
+      "request_dropped": false
+    },
+    {
+      "timestamp": "2026-10-11T04:23:50",
+      "symptom_description": "heavy coughing",
+      "symptom_duration": "few days",
+      "self_rated_severity": 7,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a persistent heavy cough lasting for a few days with a self-rated severity of 7 out of 10, but denies chest pain or difficulty breathing.",
+        "urgency": "non-urgent",
+        "severity": "medium",
+        "recommended_tier": "nurse",
+        "specialist": "general_practice",
+        "flagged_symptoms": [
+          "heavy coughing"
+        ],
+        "history_linked": true,
+        "confidence": 0.9,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "route_to_specialist",
+        "next_action": "Your case has been routed to the cardiology department. Proposed appointment: 2026-10-16 09:00.",
+        "specialist": "cardiology",
+        "proposed_slot": "2026-10-16 09:00",
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "doctor",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-11T04:20:25"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "accepted",
+      "request_dropped": false
+    }
+  ]
+}

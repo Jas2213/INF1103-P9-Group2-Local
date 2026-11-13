@@ -1,0 +1,47 @@
+{
+  "patient_id": "T0226640C",
+  "history": [
+    {
+      "timestamp": "2026-10-07T22:18:07",
+      "symptom_description": "my right hurts whenever i wear a show and there is a buldge beside by right toe",
+      "symptom_duration": "over a week",
+      "self_rated_severity": 7,
+      "red_flags_present": false,
+      "issue_type": "new",
+      "ai_result": {
+        "summary": "The patient reports a painful bulge beside their right toe that has persisted for over a week and causes discomfort when wearing shoes.",
+        "urgency": "non-urgent",
+        "severity": "medium",
+        "recommended_tier": "nurse",
+        "specialist": "podiatry",
+        "flagged_symptoms": [
+          "painful bulge on foot",
+          "persistent foot pain"
+        ],
+        "history_linked": false,
+        "confidence": 0.95,
+        "status": "ok"
+      },
+      "outcome": {
+        "decision": "route_to_specialist",
+        "next_action": "Your case has been routed to the podiatry department. Proposed appointment: 2026-10-12 09:00.",
+        "specialist": "podiatry",
+        "proposed_slot": "2026-10-12 09:00",
+        "flag_for_manual_review": false,
+        "nurse_override": false,
+        "override_reason": null,
+        "slot_set_by_staff": false,
+        "status": "SCHEDULED",
+        "assigned_practitioner_type": "nurse",
+        "override_applied": false,
+        "routing_timestamp": "2026-10-07T22:16:55"
+      },
+      "staff_overrides": [],
+      "reviewed_by": "STF0001",
+      "review_source": "ai_assisted",
+      "reviewed_at": null,
+      "patient_decision": "accepted",
+      "request_dropped": false
+    }
+  ]
+}

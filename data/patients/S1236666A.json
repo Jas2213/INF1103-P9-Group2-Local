@@ -1,0 +1,70 @@
+{
+  "patient_id": "S1236666A",
+  "history": [],
+  "pending_case": {
+    "stage": "awaiting_patient",
+    "submitted_at": "2026-10-03T15:30:59",
+    "symptom_description": "slight chest pain",
+    "issue_type": "new",
+    "ai_result": {
+      "summary": "The patient reports experiencing slight chest pain with no prior medical history on file.",
+      "urgency": "urgent",
+      "severity": "medium",
+      "recommended_tier": "doctor",
+      "specialist": "Cardiology",
+      "flagged_symptoms": [
+        "chest pain"
+      ],
+      "history_linked": false,
+      "confidence": 0.95,
+      "proposed_slot": "2026-11-03 09:00",
+      "status": "ok"
+    },
+    "outcome": {
+      "decision": "urgent_priority",
+      "next_action": "Your case is marked urgent. Proposed appointment: 2026-11-03 09:00.",
+      "specialist": "cardiology",
+      "proposed_slot": "2026-11-03 09:00",
+      "flag_for_manual_review": true,
+      "nurse_override": true,
+      "override_reason": "department: John; proposed_slot: push to next month; department: Cardiology; urgency: urgent",
+      "slot_set_by_staff": true,
+      "status": "GUARDRAIL_OVERRIDDEN",
+      "assigned_practitioner_type": "doctor",
+      "override_applied": false,
+      "routing_timestamp": "2026-10-03T15:44:21"
+    },
+    "staff_overrides": [
+      [
+        "department",
+        "John"
+      ],
+      [
+        "proposed_slot",
+        "push to next month"
+      ],
+      [
+        "department",
+        "Cardiology"
+      ],
+      [
+        "urgency",
+        "urgent"
+      ]
+    ],
+    "original_ai_result": {
+      "summary": "The patient reports experiencing slight chest pain with no prior medical history on file.",
+      "urgency": "urgent",
+      "severity": "medium",
+      "recommended_tier": "doctor",
+      "specialist": "cardiology",
+      "flagged_symptoms": [
+        "chest pain"
+      ],
+      "history_linked": false,
+      "confidence": 0.95,
+      "status": "ok"
+    },
+    "reviewed_by": "STF0001"
+  }
+}
